@@ -66,16 +66,16 @@ jobs:
         uses: actions/cache@v4
         id: ndk-cache
         with:
-          path: build/android-ndk-r25c
-          key: ndk-r25c-linux
+          path: build/android-ndk-r25b
+          key: ndk-r25b-linux
 
       - name: Download NDK
         if: steps.ndk-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p build
-          curl -L -o build/android-ndk-r25c-linux.zip \
-            https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
-          cd build && unzip -q android-ndk-r25c-linux.zip && rm android-ndk-r25c-linux.zip
+          curl -L -o build/android-ndk-r25b-linux.zip \
+            https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+          cd build && unzip -q android-ndk-r25b-linux.zip && rm android-ndk-r25b-linux.zip
 
       # Always clone fresh - cache causes issues with different custom names
       - name: Clone Frida
@@ -90,7 +90,7 @@ jobs:
           CMD="python3 build.py --version ${{ inputs.frida_version }}"
           CMD="$CMD --name ${{ inputs.custom_name }}"
           CMD="$CMD --arch ${{ inputs.arch }}"
-          CMD="$CMD --skip-clone --ndk-path build/android-ndk-r25c"
+          CMD="$CMD --skip-clone --ndk-path build/android-ndk-r25b"
           CMD="$CMD --verify"
 
           if [ -n "${{ inputs.port }}" ]; then
