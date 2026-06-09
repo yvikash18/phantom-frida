@@ -62,46 +62,27 @@ jobs:
           sudo apt-get install -y build-essential curl git python3 unzip
 
       # Cache NDK (~1.5 GB) — saves ~3 min on subsequent runs
-      # Frida 17.x requires NDK r25c
       - name: Cache NDK
         uses: actions/cache@v4
         id: ndk-cache
         with:
-          path: build/android-ndk-r25c
-          key: ndk-r25c-linux
+          path: build/android-ndk-r29
+          key: ndk-r29-linux
 
       - name: Download NDK
         if: steps.ndk-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p build
-          curl -L -o build/android-ndk-r25c-linux.zip \
-            https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
-          cd build && unzip -q android-ndk-r25c-linux.zip && rm android-ndk-r25c-linux.zip
+          curl -L -o build/android-ndk-r29-linux.zip \
+            https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          cd build && unzip -q android-ndk-r29-linux.zip && rm android-ndk-r29-linux.zip
 
-      # Cache Frida source tree — saves ~5 min clone time
-      - name: Cache Frida source
-        uses: actions/cache@v4
-        id: frida-cache
-        with:
-          path: build/frida
-          key: frida-${{ inputs.frida_version }}-source
-
+      # Always clone fresh - cache causes issues with different custom names
       - name: Clone Frida
-        if: steps.frida-cache.outputs.cache-hit != 'true'
         run: |
+          rm -rf build/frida || true
           git clone --recurse-submodules --branch ${{ inputs.frida_version }} --depth 1 \
             https://github.com/frida/frida.git build/frida
-
-      # If cache hit, we need a fresh copy (patches are destructive)
-      - name: Prepare fresh source from cache
-        if: steps.frida-cache.outputs.cache-hit == 'true'
-        run: |
-          # Restore to clean state (including build dir — patches are destructive)
-          cd build/frida
-          git checkout -- .
-          git submodule foreach --recursive 'git checkout -- . || true'
-          git clean -fdx || true
-          rm -rf build/
 
       - name: Build command
         id: cmd
