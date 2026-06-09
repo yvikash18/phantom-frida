@@ -683,11 +683,6 @@ def apply_binary_patches(binary_path: Path, custom_name: str, extended: bool = F
 
 def configure_arch(frida_dir: Path, arch: str, ndk_path: Path):
     log(f"Configuring for {arch}...", "STEP")
-    # Clean build dir to allow reconfiguration for different arch
-    build_dir = frida_dir / "build"
-    if build_dir.exists():
-        log(f"Cleaning previous build dir for {arch}...", "INFO")
-        shutil.rmtree(build_dir)
     run(
         f"./configure --host={arch}",
         cwd=str(frida_dir),
