@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       frida_version:
-        description: 'Frida version (e.g. 17.7.2)'
+        description: 'Frida version (e.g. 17.11.0)'
         required: true
-        default: '17.7.2'
+        default: '17.11.0'
       custom_name:
         description: 'Custom name (replaces "frida" everywhere)'
         required: true
@@ -39,6 +39,9 @@ on:
         type: boolean
         default: false
 
+env:
+  ANDROID_NDK_VERSION: r29  # Matches official Frida CI exactly
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -63,26 +66,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl git python3 unzip
 
-      - name: Cache NDK
-        uses: actions/cache@v4
-        id: ndk-cache
+      # Use nttld/setup-ndk exactly like official Frida CI does
+      - name: Set up NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
         with:
-          path: build/android-ndk-r25b
-          key: ndk-r25b-linux
+          ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+          add-to-path: false
 
-      - name: Download NDK
-        if: steps.ndk-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p build
-          curl -L -o build/android-ndk-r25b-linux.zip \
-            https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-          cd build && unzip -q android-ndk-r25b-linux.zip && rm android-ndk-r25b-linux.zip
+      - name: Cache Frida source
+        uses: actions/cache@v4
+        id: frida-cache
+        with:
+          path: build/frida
+          key: frida-${{ inputs.frida_version }}-source
 
       - name: Clone Frida
+        if: steps.frida-cache.outputs.cache-hit != 'true'
         run: |
-          rm -rf build/frida || true
           git clone --recurse-submodules --branch ${{ inputs.frida_version }} --depth 1 \
             https://github.com/frida/frida.git build/frida
+
+      - name: Prepare fresh source from cache
+        if: steps.frida-cache.outputs.cache-hit == 'true'
+        run: |
+          cd build/frida
+          git checkout -- .
+          git submodule foreach --recursive 'git checkout -- . || true'
+          git clean -fdx || true
+          rm -rf build/
 
       - name: Build command
         id: cmd
@@ -90,7 +102,8 @@ jobs:
           CMD="python3 build.py --version ${{ inputs.frida_version }}"
           CMD="$CMD --name ${{ inputs.custom_name }}"
           CMD="$CMD --arch ${{ inputs.arch }}"
-          CMD="$CMD --skip-clone --ndk-path build/android-ndk-r25b"
+          CMD="$CMD --skip-clone"
+          CMD="$CMD --ndk-path ${{ steps.setup-ndk.outputs.ndk-path }}"
           CMD="$CMD --verify"
 
           if [ -n "${{ inputs.port }}" ]; then
@@ -110,6 +123,8 @@ jobs:
 
       - name: Apply patches and build
         run: ${{ steps.cmd.outputs.cmd }}
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: List artifacts
         run: |
@@ -161,6 +176,7 @@ jobs:
             **Architecture:** ${{ inputs.arch }}
             **Extended anti-detection:** ${{ inputs.extended }}
             **Stability fixes:** ${{ inputs.temp_fixes }}
+            **NDK:** ${{ env.ANDROID_NDK_VERSION }} (via nttld/setup-ndk, matches official Frida CI)
 
             ### Artifacts
             - `*-server-*.gz` — Frida server binaries (push to `/data/local/tmp/` on device)
