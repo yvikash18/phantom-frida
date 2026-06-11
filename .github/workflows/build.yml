@@ -43,6 +43,8 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -61,7 +63,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl git python3 unzip
 
-      # Cache NDK (~1.5 GB) — saves ~3 min on subsequent runs
       - name: Cache NDK
         uses: actions/cache@v4
         id: ndk-cache
@@ -77,7 +78,6 @@ jobs:
             https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           cd build && unzip -q android-ndk-r25b-linux.zip && rm android-ndk-r25b-linux.zip
 
-      # Always clone fresh - cache causes issues with different custom names
       - name: Clone Frida
         run: |
           rm -rf build/frida || true
@@ -148,3 +148,40 @@ jobs:
             output/*
             !output/*.gz
           retention-days: 7
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.custom_name }}-${{ inputs.frida_version }}
+          name: "${{ inputs.custom_name }} v${{ inputs.frida_version }}"
+          body: |
+            ## ${{ inputs.custom_name }} v${{ inputs.frida_version }}
+
+            **Built from Frida:** ${{ inputs.frida_version }}
+            **Architecture:** ${{ inputs.arch }}
+            **Extended anti-detection:** ${{ inputs.extended }}
+            **Stability fixes:** ${{ inputs.temp_fixes }}
+
+            ### Artifacts
+            - `*-server-*.gz` — Frida server binaries (push to `/data/local/tmp/` on device)
+            - `*-gadget-*.gz` — Frida gadget binaries (inject into APK)
+
+            ### Usage
+```bash
+            # Extract and push server to device
+            gunzip ${{ inputs.custom_name }}-server-*.gz
+            adb push ${{ inputs.custom_name }}-server-* /data/local/tmp/
+            adb shell chmod +x /data/local/tmp/${{ inputs.custom_name }}-server-*
+            adb shell /data/local/tmp/${{ inputs.custom_name }}-server-* &
+```
+
+            Built via GitHub Actions on `ubuntu-22.04`
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            output/*.gz
+            output/${{ inputs.custom_name }}-server-*
+            output/${{ inputs.custom_name }}-gadget-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
